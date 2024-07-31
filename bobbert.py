@@ -11,6 +11,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+# Global variables used to keep state
 sessionExists = False
 gameName = ""
 gameTime = ""
@@ -35,7 +36,22 @@ async def on_message(message):
     msg = message.content 
 
     if msg == "!help":
-        await message.channel.send("need to implement")
+        embed = discord.Embed(
+            colour = discord.Colour.dark_teal(),
+            description = "useless discord bot",
+            title = "Bobbert"
+        )
+        embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
+
+        embed.add_field(name="Chatbot", value="!bobbert: talk to Bobbert!", inline=False)
+
+        embed.add_field(name="Quotes (inspired by Gain Wisdom)", value=
+                                                "!quote: shows a random quote\n" +
+                                                "!quoteadd <quote>: adds a quote\n"
+                                                "!quotelist: lists all quotes\n" +
+                                                "!quotedelete <id>: deletes a specific quote, by ID\n", inline=False)
+
+        await message.channel.send(embed=embed)
 
     # Chat section
     if msg == "!bobbert":
@@ -63,7 +79,7 @@ async def on_message(message):
             await message.channel.send("There's no scheduled session!")
 
     
-    elif msg.startswith("!sessionadd"):
+    elif msg.startswith("!newsession"):
         if len(msg) == 11:
             await message.channel.send("Usage: <game> at <time>PM")
 
@@ -89,7 +105,10 @@ async def on_message(message):
                 while reactionCount < neededReactions:
                     reaction, user = await client.wait_for('reaction_add', check=check, timeout=None)
                     reactionCount += 1
-                    await message.channel.send(f"We have {reactionCount} votes for {tentativeGameName}!")   
+                    if reactionCount == 1:
+                        await message.channel.send(f"We have {reactionCount} vote for {tentativeGameName}!")   
+                    else: 
+                        await message.channel.send(f"We have {reactionCount} votes for {tentativeGameName}!") 
                 
                 sessionExists = True
                 gameName = tentativeGameName
