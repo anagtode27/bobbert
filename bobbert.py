@@ -2,8 +2,10 @@ import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import json
 import random
 import pymongo
+from collections import deque
 
 # Set up environment variables
 load_dotenv()
@@ -15,16 +17,21 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Set up connection to mongodb database
+# Set up connection to mongodb server
 myclient = pymongo.MongoClient(MONGODB_CONSTRING)
-mydb = myclient['bobbert']
-mycol = mydb['quotes']
+mydb = myclient['bobbert'] # select specific database 
+mycol = mydb['quotes'] # select specific collection
 
 # Global variables used to keep state
+# gaming session related:
 sessionExists = False
 gameName = ""
 gameTime = ""
-neededReactions = 1 #change this as needed 
+neededReactions = 1 # change this as needed 
+# quotes related:
+previousChosenQuoteIndexes = deque(maxlen=3) # ensures variability, to an extent. change this as needed. 
+for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
+    previousChosenQuoteIndexes.append(-1)
 
 # Init message
 @bot.event
@@ -39,6 +46,7 @@ async def on_command_error(ctx, error):
         return
     raise error
 
+
 # Code for specific commands below 
 
 @bot.command()
@@ -49,12 +57,13 @@ async def helpme(ctx):
             title = "Bobbert: useless discord bot"
         )
     embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
-    embed.add_field(name="Chatbot", value="!chat [message]: talk to Bobbert!", inline=False)
-    embed.add_field(name="Quotes (inspired by Gain Wisdom)", value=
-                        "!quote: shows a random quote\n" +
-                        "!quoteadd [\"quote\" - person]: adds a quote\n"
-                        "!listquotes: lists all quotes\n" +
-                        "!quotedelete [quote text here]: deletes the quote\n", inline=False)
+    embed.add_field(name="Chatbot", value="!chat message : talk to Bobbert!\n", inline=False)
+    embed.add_field(name="Quotes (inspired by Gain Wisdom) \nNote: don't include quotations!", 
+                    value=
+                        "!quote : shows a random quote\n" +
+                        "!addquote quote - person : adds a quote\n"
+                        "!listquotes : lists all quotes\n" +
+                        "!deletquote quote : deletes the quote\n", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -63,19 +72,31 @@ async def chat(ctx):
 
 @bot.command()
 async def quote(ctx):
+    global previousChosenQuoteIndexes
+    print(previousChosenQuoteIndexes)
     quoteJson = mycol.find()
     quoteCount = mycol.count_documents({})
     chosenIndex = random.randint(0, quoteCount-1)
-    chosenQuote = "\"" + quoteJson[chosenIndex]['text'] + "\" - " + quoteJson[chosenIndex]['author'] # refactor this into a method that take 2 strings
-    embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
+    while chosenIndex in list(previousChosenQuoteIndexes):
+        chosenIndex = random.randint(0, quoteCount-1)
+    previousChosenQuoteIndexes.append(chosenIndex)
+    chosenQuote = makeItAQuote(quoteJson[chosenIndex]['text'], quoteJson[chosenIndex]['author']) 
+    embed = discord.Embed(colour = discord.Colour.dark_teal(), description = "", title = "" )
     embed.add_field(name="", value=chosenQuote, inline=False)
 
     await ctx.send(embed=embed)
     #await ctx.send("showing random quote")
 
 @bot.command()
-async def addquote(ctx):
-    await ctx.send("quoteadd")
+async def addquote(ctx, *, arg: str = None):
+    if arg is None or " - " not in arg:
+        await ctx.send("Usage: quote - person")
+    else:
+        splitParameters = arg.split(" - ")
+        newQuote =  {"text": splitParameters[0], "author": splitParameters[1] } 
+        # no need for dictionary -> json conversion, since pymongo uses dictionaries as documents
+        x = mycol.insert_one(newQuote)
+        await ctx.send(f"Added: {makeItAQuote(splitParameters[0], splitParameters[1])}")
 
 @bot.command()
 async def listquotes(ctx):
@@ -84,10 +105,9 @@ async def listquotes(ctx):
     #print(quoteCount)
     quoteList = ""
     for i in range(quoteCount): 
-        quoteList += "\"" + quoteJson[i]['text'] + "\" - " + quoteJson[i]['author'] + "\n" # only works since text and author are both strings 
-        #await ctx.send("\"" + quoteList[i]['text'] + "\" - " + quoteList[i]['author']) 
+        quoteList += makeItAQuote(quoteJson[i]['text'], quoteJson[i]['author']) # only works since text and author are both strings 
     embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
-    embed.add_field(name="Quotes", value=quoteList, inline=False)
+    embed.add_field(name=f"{quoteCount} Quotes Found", value=quoteList, inline=False)
     await ctx.send(embed=embed)
     #await ctx.send("quotelist")
 
@@ -155,5 +175,10 @@ async def endsession(ctx):
         sessionExists = False
     else:
         await ctx.send("There's no scheduled session!")
+
+# Takes 2 strings, text and author, and creates a quote representation of them.
+def makeItAQuote(text, author):
+    return "\"" + text + "\" - " + author + "\n"
+
 
 bot.run(DISCORD_TOKEN)
