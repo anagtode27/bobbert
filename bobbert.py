@@ -10,14 +10,13 @@ DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 # Create a connection to discord 
 intents = discord.Intents.default()
 intents.message_content = True
-
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Global variables used to keep state
 sessionExists = False
 gameName = ""
 gameTime = ""
-neededReactions = 1
+neededReactions = 1 #change this as needed 
 
 # Init message
 @bot.event
@@ -31,26 +30,26 @@ async def on_command_error(ctx, error):
         return
     raise error
 
-# Commands below 
+# Code for specific commands below 
 
 @bot.command()
-async def info(ctx):
+async def gethelp(ctx):
     embed = discord.Embed(
             colour = discord.Colour.dark_teal(),
-            description = "useless discord bot",
-            title = "Bobbert"
+            description = "",
+            title = "Bobbert: useless discord bot"
         )
     embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
-    embed.add_field(name="Chatbot", value="!bobbert: talk to Bobbert!", inline=False)
+    embed.add_field(name="Chatbot", value="!chat [message]: talk to Bobbert!", inline=False)
     embed.add_field(name="Quotes (inspired by Gain Wisdom)", value=
                         "!quote: shows a random quote\n" +
-                        "!quoteadd <quote>: adds a quote\n"
+                        "!quoteadd [\"quote\" - person]: adds a quote\n"
                         "!quotelist: lists all quotes\n" +
-                        "!quotedelete <id>: deletes a specific quote, by ID\n", inline=False)
+                        "!quotedelete [id]: deletes a specific quote, by ID\n", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command()
-async def bobbert(ctx):
+async def chat(ctx):
     await ctx.send("Hello!")
 
 @bot.command()
