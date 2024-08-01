@@ -2,15 +2,23 @@ import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import random
+import pymongo
 
 # Set up environment variables
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+MONGODB_CONSTRING = os.getenv('MONGODB_CONSTRING')
 
 # Create a connection to discord 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Set up connection to mongodb database
+myclient = pymongo.MongoClient(MONGODB_CONSTRING)
+mydb = myclient['bobbert']
+mycol = mydb['quotes']
 
 # Global variables used to keep state
 sessionExists = False
@@ -22,6 +30,7 @@ neededReactions = 1 #change this as needed
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
+    #print(myclient.list_database_names())
 
 # Ignore all "command not found" errors
 @bot.event
@@ -33,7 +42,7 @@ async def on_command_error(ctx, error):
 # Code for specific commands below 
 
 @bot.command()
-async def gethelp(ctx):
+async def helpme(ctx):
     embed = discord.Embed(
             colour = discord.Colour.dark_teal(),
             description = "",
@@ -44,8 +53,8 @@ async def gethelp(ctx):
     embed.add_field(name="Quotes (inspired by Gain Wisdom)", value=
                         "!quote: shows a random quote\n" +
                         "!quoteadd [\"quote\" - person]: adds a quote\n"
-                        "!quotelist: lists all quotes\n" +
-                        "!quotedelete [id]: deletes a specific quote, by ID\n", inline=False)
+                        "!listquotes: lists all quotes\n" +
+                        "!quotedelete [quote text here]: deletes the quote\n", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -54,15 +63,33 @@ async def chat(ctx):
 
 @bot.command()
 async def quote(ctx):
-    await ctx.send("showing random quote")
+    quoteJson = mycol.find()
+    quoteCount = mycol.count_documents({})
+    chosenIndex = random.randint(0, quoteCount-1)
+    chosenQuote = "\"" + quoteJson[chosenIndex]['text'] + "\" - " + quoteJson[chosenIndex]['author'] # refactor this into a method that take 2 strings
+    embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
+    embed.add_field(name="", value=chosenQuote, inline=False)
+
+    await ctx.send(embed=embed)
+    #await ctx.send("showing random quote")
 
 @bot.command()
 async def addquote(ctx):
     await ctx.send("quoteadd")
 
 @bot.command()
-async def quotelist(ctx):
-    await ctx.send("quotelist")
+async def listquotes(ctx):
+    quoteJson = mycol.find()
+    quoteCount = mycol.count_documents({})
+    #print(quoteCount)
+    quoteList = ""
+    for i in range(quoteCount): 
+        quoteList += "\"" + quoteJson[i]['text'] + "\" - " + quoteJson[i]['author'] + "\n" # only works since text and author are both strings 
+        #await ctx.send("\"" + quoteList[i]['text'] + "\" - " + quoteList[i]['author']) 
+    embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
+    embed.add_field(name="Quotes", value=quoteList, inline=False)
+    await ctx.send(embed=embed)
+    #await ctx.send("quotelist")
 
 @bot.command()
 async def deletequote(ctx):
