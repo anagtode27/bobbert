@@ -23,12 +23,10 @@ mydb = myclient['bobbert'] # select specific database
 mycol = mydb['quotes'] # select specific collection
 
 # Global variables used to keep state
-# gaming session related:
 sessionExists = False
 gameName = ""
 gameTime = ""
 neededReactions = 1 # change this as needed 
-# quotes related:
 previousChosenQuoteIndexes = deque(maxlen=3) # ensures variability, to an extent. change this as needed. 
 for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
@@ -37,7 +35,6 @@ for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
-    #print(myclient.list_database_names())
 
 # Ignore all "command not found" errors
 @bot.event
@@ -58,12 +55,12 @@ async def helpme(ctx):
         )
     embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
     embed.add_field(name="Chatbot", value="!chat message : talk to Bobbert!\n", inline=False)
-    embed.add_field(name="Quotes (inspired by Gain Wisdom) \nNote: don't include quotations!", 
+    embed.add_field(name="Quotes (gain wisdom, don't include \" \")\n", 
                     value=
                         "!quote : shows a random quote\n" +
-                        "!addquote quote - person : adds a quote\n"
-                        "!listquotes : lists all quotes\n" +
-                        "!deletquote quote : deletes the quote\n", inline=False)
+                        "!listquotes\n" +
+                        "!addquote quote_text - person\n" +
+                        "!deletequote quote_text\n", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -73,19 +70,21 @@ async def chat(ctx):
 @bot.command()
 async def quote(ctx):
     global previousChosenQuoteIndexes
-    print(previousChosenQuoteIndexes)
+    print(previousChosenQuoteIndexes) # dont count this 
+    ## refactor section 
     quoteJson = mycol.find()
     quoteCount = mycol.count_documents({})
+    ## refactor section 
+    ## refactor section
     chosenIndex = random.randint(0, quoteCount-1)
     while chosenIndex in list(previousChosenQuoteIndexes):
         chosenIndex = random.randint(0, quoteCount-1)
     previousChosenQuoteIndexes.append(chosenIndex)
+    ## refactor section
     chosenQuote = makeItAQuote(quoteJson[chosenIndex]['text'], quoteJson[chosenIndex]['author']) 
     embed = discord.Embed(colour = discord.Colour.dark_teal(), description = "", title = "" )
     embed.add_field(name="", value=chosenQuote, inline=False)
-
     await ctx.send(embed=embed)
-    #await ctx.send("showing random quote")
 
 @bot.command()
 async def addquote(ctx, *, arg: str = None):
@@ -100,14 +99,17 @@ async def addquote(ctx, *, arg: str = None):
 
 @bot.command()
 async def listquotes(ctx):
+    ## refactor section
     quoteJson = mycol.find()
     quoteCount = mycol.count_documents({})
+    ## refactor section 
+
     #print(quoteCount)
     quoteList = ""
     for i in range(quoteCount): 
         quoteList += makeItAQuote(quoteJson[i]['text'], quoteJson[i]['author']) # only works since text and author are both strings 
     embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
-    embed.add_field(name=f"{quoteCount} Quotes Found", value=quoteList, inline=False)
+    embed.add_field(name="", value=quoteList, inline=False)
     await ctx.send(embed=embed)
     #await ctx.send("quotelist")
 
@@ -142,12 +144,12 @@ async def newsession(ctx, *, arg: str = None):
         tentativeGameTime = splitParameters[1].strip()
 
         sentMessage = await ctx.send(f"@everyone Who wants to play {tentativeGameName} @ {tentativeGameTime}?")
+        
+        reactionCount = 0 # local, per-function stack frame, counter
 
         def check(reaction, user):
-            return str(reaction.emoji) == '✅' and reaction.message.id == sentMessage.id
+            return str(reaction.emoji) == '✅' and reaction.message.id == sentMessage.id    
         
-        reactionCount = 0
-
         while reactionCount < neededReactions:
             reaction, user = await bot.wait_for('reaction_add', check=check, timeout=None)
             reactionCount += 1
@@ -179,6 +181,7 @@ async def endsession(ctx):
 # Takes 2 strings, text and author, and creates a quote representation of them.
 def makeItAQuote(text, author):
     return "\"" + text + "\" - " + author + "\n"
+
 
 
 bot.run(DISCORD_TOKEN)
