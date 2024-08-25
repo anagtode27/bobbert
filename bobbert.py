@@ -6,11 +6,13 @@ import json
 import random
 import pymongo
 from collections import deque
+from openai import OpenAI
 
 # Set up environment variables
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 MONGODB_CONSTRING = os.getenv('MONGODB_CONSTRING')
+OPENAI_KEY = os.getenv('OPENAI_KEY')
 
 # Create a connection to discord 
 intents = discord.Intents.default()
@@ -22,6 +24,9 @@ myclient = pymongo.MongoClient(MONGODB_CONSTRING)
 mydb = myclient['bobbert'] # select specific database 
 mycol = mydb['quotes'] # select specific collection
 
+# Create openAI object
+client = OpenAI(api_key = OPENAI_KEY)
+
 # Global variables used to keep state
 sessionExists = False
 gameName = ""
@@ -30,6 +35,8 @@ neededReactions = 1 # change this as needed
 previousChosenQuoteIndexes = deque(maxlen=3) # ensures variability, to an extent. change this as needed. 
 for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
+
+messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone in every message. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
 
 # Init message
 @bot.event
@@ -64,8 +71,16 @@ async def helpme(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def chat(ctx):
-    await ctx.send("Hello!")
+async def bobbert(ctx, *, arg):
+    global messages
+    messages.append({"role": "user", "content": arg})
+    completion = client.chat.completions.create(
+        model = "gpt-4o-mini",
+        messages = messages
+    )   
+    messages.append({"role": "assistant", "content": completion.choices[0].message.content})
+    await ctx.send(completion.choices[0].message.content)   
+
 
 @bot.command()
 async def quote(ctx):
