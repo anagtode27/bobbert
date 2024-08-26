@@ -24,18 +24,21 @@ myclient = pymongo.MongoClient(MONGODB_CONSTRING)
 mydb = myclient['bobbert'] # select specific database 
 mycol = mydb['quotes'] # select specific collection
 
-# Create openAI object
+# Create OpenAI object
 client = OpenAI(api_key = OPENAI_KEY)
 
-# Global variables used to keep state
+# Global variables 
+
+# Used to keep game session state
 sessionExists = False
 gameName = ""
 gameTime = ""
 neededReactions = 1 # change this as needed 
-previousChosenQuoteIndexes = deque(maxlen=3) # ensures variability, to an extent. change this as needed. 
+previousChosenQuoteIndexes = deque(maxlen=3) # creates a queue of 3. ensures variability, to an extent. change this as needed. 
 for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
 
+# List of message objects that are used to keep local history of conversations with gpt
 messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone in every message. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
 
 # Init message
@@ -43,72 +46,94 @@ messages = [{"role": "system", "content": "Your name is Bobbert. You are an assi
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
-# Ignore all "command not found" errors
+# Ignore all "command not found" errors, let all other errors through
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
-    raise error
+    else:
+        raise error
 
 
-# Code for specific commands below 
+# Code for specific text commands below 
 
 @bot.command()
 async def helpme(ctx):
+    # Create and configure embed
     embed = discord.Embed(
             colour = discord.Colour.dark_teal(),
             description = "",
-            title = "Bobbert: useless discord bot"
+            title = "Bobbert - a Useless Discord Bot"
         )
     embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
-    embed.add_field(name="Chatbot", value="!chat message : talk to Bobbert!\n", inline=False)
-    embed.add_field(name="Quotes (gain wisdom, don't include \" \")\n", 
+    embed.add_field(name="Chatbot Commands", value="!bobbert <message>\n", inline=False)
+    embed.add_field(name="Quotes Commands (omit \" \")\n", 
                     value=
-                        "!quote : shows a random quote\n" +
+                        "!quote\n" +
                         "!listquotes\n" +
-                        "!addquote quote_text - person\n" +
-                        "!deletequote quote_text\n", inline=False)
+                        "!addquote <quote_text - person>\n" +
+                        "!deletequote <quote_text>\n", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command()
 async def bobbert(ctx, *, arg):
     global messages
+    # print(messages) debug  
+
+    # add the incoming prompt to the conversation history
     messages.append({"role": "user", "content": arg})
+
+    # create the gpt response
     completion = client.chat.completions.create(
         model = "gpt-4o-mini",
         messages = messages
     )   
+
+    # add the gpt response to the conversation history
     messages.append({"role": "assistant", "content": completion.choices[0].message.content})
+
+    # send response
     await ctx.send(completion.choices[0].message.content)   
 
 
 @bot.command()
 async def quote(ctx):
     global previousChosenQuoteIndexes
-    print(previousChosenQuoteIndexes) # dont count this 
+    # print(previousChosenQuoteIndexes) debug 
+
     ## refactor section 
     quoteJson = mycol.find()
     quoteCount = mycol.count_documents({})
     ## refactor section 
+
     ## refactor section
     chosenIndex = random.randint(0, quoteCount-1)
     while chosenIndex in list(previousChosenQuoteIndexes):
         chosenIndex = random.randint(0, quoteCount-1)
     previousChosenQuoteIndexes.append(chosenIndex)
     ## refactor section
+
+    # create a quote representation
     chosenQuote = makeItAQuote(quoteJson[chosenIndex]['text'], quoteJson[chosenIndex]['author']) 
+
+    # Create and configure the embed
     embed = discord.Embed(colour = discord.Colour.dark_teal(), description = "", title = "" )
     embed.add_field(name="", value=chosenQuote, inline=False)
+
+    # Send embed 
     await ctx.send(embed=embed)
 
 @bot.command()
 async def addquote(ctx, *, arg: str = None):
-    if arg is None or " - " not in arg:
+    # Basic input validation, can be much more thorough if needed
+    if arg is None or " - " not in arg: 
         await ctx.send("Usage: quote - person")
     else:
+        # Split the argument to create quote dictionary 
         splitParameters = arg.split(" - ")
         newQuote =  {"text": splitParameters[0], "author": splitParameters[1] } 
-        # no need for dictionary -> json conversion, since pymongo uses dictionaries as documents
+
+        # insert the dictionary into mongodb using pymongo, and send success message
         x = mycol.insert_one(newQuote)
         await ctx.send(f"Added: {makeItAQuote(splitParameters[0], splitParameters[1])}")
 
@@ -118,15 +143,19 @@ async def listquotes(ctx):
     quoteJson = mycol.find()
     quoteCount = mycol.count_documents({})
     ## refactor section 
+    # print(quoteCount) debug
 
-    #print(quoteCount)
+    # iterate through quoteJson from mongodb and add each quote to quotelist
     quoteList = ""
     for i in range(quoteCount): 
         quoteList += makeItAQuote(quoteJson[i]['text'], quoteJson[i]['author']) # only works since text and author are both strings 
+    
+    # create embed with quotelist as the value 
     embed = discord.Embed( colour = discord.Colour.dark_teal(), description = "", title = "" )
     embed.add_field(name="", value=quoteList, inline=False)
+
+    # send embed 
     await ctx.send(embed=embed)
-    #await ctx.send("quotelist")
 
 @bot.command()
 async def deletequote(ctx):
