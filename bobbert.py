@@ -7,12 +7,15 @@ import random
 import pymongo
 from collections import deque
 from openai import OpenAI
+import asyncio
+import aiohttp
 
 # Set up environment variables
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 MONGODB_CONSTRING = os.getenv('MONGODB_CONSTRING')
 OPENAI_KEY = os.getenv('OPENAI_KEY')
+WEATHER_KEY = os.getenv('WEATHER_KEY')
 
 # Create a connection to discord 
 intents = discord.Intents.default()
@@ -29,7 +32,7 @@ client = OpenAI(api_key = OPENAI_KEY)
 
 # Global variables 
 
-# Used to keep game session state
+# used to keep game session state
 sessionExists = False
 gameName = ""
 gameTime = ""
@@ -38,7 +41,7 @@ previousChosenQuoteIndexes = deque(maxlen=3) # creates a queue of 3. ensures var
 for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
 
-# List of message objects that are used to keep local history of conversations with gpt
+# list of message objects that are used to keep local history of conversations with gpt
 messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone in every message. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
 
 # Init message
@@ -59,7 +62,7 @@ async def on_command_error(ctx, error):
 
 @bot.command()
 async def helpme(ctx):
-    # Create and configure embed
+    # create and configure embed
     embed = discord.Embed(
             colour = discord.Colour.dark_teal(),
             description = "",
@@ -73,6 +76,8 @@ async def helpme(ctx):
                         "!listquotes\n" +
                         "!addquote <quote_text - person>\n" +
                         "!deletequote <quote_text>\n", inline=False)
+    
+    # send embed 
     await ctx.send(embed=embed)
 
 @bot.command()
@@ -116,20 +121,20 @@ async def quote(ctx):
     # create a quote representation
     chosenQuote = makeItAQuote(quoteJson[chosenIndex]['text'], quoteJson[chosenIndex]['author']) 
 
-    # Create and configure the embed
+    # create and configure the embed
     embed = discord.Embed(colour = discord.Colour.dark_teal(), description = "", title = "" )
     embed.add_field(name="", value=chosenQuote, inline=False)
 
-    # Send embed 
+    # send embed 
     await ctx.send(embed=embed)
 
 @bot.command()
 async def addquote(ctx, *, arg: str = None):
-    # Basic input validation, can be much more thorough if needed
+    # basic input validation, can be much more thorough if needed
     if arg is None or " - " not in arg: 
         await ctx.send("Usage: quote - person")
     else:
-        # Split the argument to create quote dictionary 
+        # split the argument to create quote dictionary 
         splitParameters = arg.split(" - ")
         newQuote =  {"text": splitParameters[0], "author": splitParameters[1] } 
 
@@ -225,6 +230,51 @@ async def endsession(ctx):
 # Takes 2 strings, text and author, and creates a quote representation of them.
 def makeItAQuote(text, author):
     return "\"" + text + "\" - " + author + "\n"
+
+@bot.command()
+async def weather(ctx, *, cityName):
+    url = "http://api.weatherapi.com/v1/current.json"
+    params = {
+        "key": WEATHER_KEY,
+        "q": cityName
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as response:
+            data = await response.json()
+
+            if "error" in data:
+                await ctx.send(data["error"]["message"])
+            else:     
+                # extract data
+                city = data["location"]["name"]
+                state = data["location"]["region"]
+                country = data["location"]["country"]
+
+                iconUrl = "https:" + data["current"]["condition"]["icon"]
+
+                tempF = data["current"]["temp_f"]
+                tempC = data["current"]["temp_c"]
+
+                # create and configure embed
+                embed = discord.Embed(
+                colour = discord.Colour.dark_teal(),
+                description = "",
+                title = f"Weather information for {city}, {state}, {country}"
+                )
+                embed.set_thumbnail(url=iconUrl)
+                embed.add_field(name="Temperature (F/C)", value=f"{tempF}, {tempC}\n", inline=False)
+                
+                # send embed 
+                await ctx.send(embed=embed)
+
+
+
+
+    
+
+        
+
 
 
 
