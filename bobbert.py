@@ -9,8 +9,9 @@ from collections import deque
 from openai import OpenAI
 import asyncio
 import aiohttp
+from datetime import datetime, timedelta
 
-# Set up environment variables
+# Load environment variables
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 MONGODB_CONSTRING = os.getenv('MONGODB_CONSTRING')
@@ -32,7 +33,7 @@ client = OpenAI(api_key = OPENAI_KEY)
 
 # Global variables 
 
-# used to keep game session state
+# keeps game session state
 sessionExists = False
 gameName = ""
 gameTime = ""
@@ -42,12 +43,12 @@ for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
 
 # list of message objects that are used to keep local history of conversations with gpt
-messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone in every message. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
+messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone extremely often, but you are equally caring. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
 
 # Init message
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
+    print(f'We have logged in as {bot.user}!')
 
 # Ignore all "command not found" errors, let all other errors through
 @bot.event
@@ -57,54 +58,53 @@ async def on_command_error(ctx, error):
     else:
         raise error
 
-
 # Code for specific text commands below 
 
-@bot.command()
-async def helpme(ctx):
-    # create and configure embed
-    embed = discord.Embed(
-            colour = discord.Colour.dark_teal(),
-            description = "",
-            title = "Bobbert - a Useless Discord Bot"
-        )
-    embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
-    embed.add_field(name="Chatbot Commands", value="!bobbert <message>\n", inline=False)
-    embed.add_field(name="Quotes Commands (omit \" \")\n", 
-                    value=
-                        "!quote\n" +
-                        "!listquotes\n" +
-                        "!addquote <quote_text - person>\n" +
-                        "!deletequote <quote_text>\n", inline=False)
-    
-    # send embed 
-    await ctx.send(embed=embed)
-
+# Chatbot command
 @bot.command()
 async def bobbert(ctx, *, arg):
     global messages
-    # print(messages) debug  
+    try:
+        # add the incoming prompt to the conversation history
+        messages.append({"role": "user", "content": arg})
+        # create the gpt response
+        completion = client.chat.completions.create(
+            model = "gpt-4o-mini",
+            messages = messages
+        ) 
+        # add the gpt response to the conversation history, and send
+        gptResponse = completion.choices[0].message.content
+        messages.append({"role": "assistant", "content": gptResponse})
+        await ctx.send(gptResponse)  
+    except:
+        await ctx.send("Error generating response.")
 
-    # add the incoming prompt to the conversation history
-    messages.append({"role": "user", "content": arg})
+# Generates and configures help message embed
+@bot.command()
+async def helppls(ctx):
+    try:
+        embed = discord.Embed(
+                colour = discord.Colour.dark_teal(),
+                description = "",
+                title = "Bobbert - a Useless Discord Bot"
+            )
+        embed.set_thumbnail(url="https://statics.koreanbuilds.net/tile_200x200/Blitzcrank.webp")
+        embed.add_field(name="Chatbot Commands", value=
+                            "!bobbert <message>\n", inline=False)
+        embed.add_field(name="Quotes Commands (omit \" \")\n", 
+                        value=
+                            "!quote\n" +
+                            "!listquotes\n" +
+                            "!addquote <quote_text - person>\n" +
+                            "!deletequote <quote_text>\n", inline=False) 
+        await ctx.send(embed=embed)
+    except:
+        await ctx.send("Error loading help embed.")
 
-    # create the gpt response
-    completion = client.chat.completions.create(
-        model = "gpt-4o-mini",
-        messages = messages
-    )   
-
-    # add the gpt response to the conversation history
-    messages.append({"role": "assistant", "content": completion.choices[0].message.content})
-
-    # send response
-    await ctx.send(completion.choices[0].message.content)   
-
-
+# Show a random quote from the database
 @bot.command()
 async def quote(ctx):
     global previousChosenQuoteIndexes
-    # print(previousChosenQuoteIndexes) debug 
 
     ## refactor section 
     quoteJson = mycol.find()
@@ -194,7 +194,7 @@ async def newsession(ctx, *, arg: str = None):
 
         sentMessage = await ctx.send(f"@everyone Who wants to play {tentativeGameName} @ {tentativeGameTime}?")
         
-        reactionCount = 0 # local, per-function stack frame, counter
+        reactionCount = 0 # local, per-function stack frame (each message), counter
 
         def check(reaction, user):
             return str(reaction.emoji) == '✅' and reaction.message.id == sentMessage.id    
@@ -268,11 +268,39 @@ async def weather(ctx, *, cityName):
                 # send embed 
                 await ctx.send(embed=embed)
 
+@bot.command()
+async def timenow(ctx):
+    currTime = datetime.now()
+    formattedTime = currTime.strftime("%I:%M %p, on %A, %m/%d/%Y")
+    await ctx.send(f"It's currently {formattedTime}!")
 
+@bot.command()
+async def remindme(ctx, *, args):    
+    time_units = {'secs': 'seconds', 'mins': 'minutes', 'hrs': 'hours'}
+    try:
+        for i in range(len(args)):
+            if args[i].isdigit():
+                text = args[:i].strip()
+                number = args[i]
+                unit = args[i+1:].strip()
 
+                # if the text and unit are empty string
+                # or if the unit is not valid
+                if text == "" or unit == "" or unit not in time_units:
+                    raise Exception("!remindme <text> <number> <hrs/mins/secs>")
+                break
+        else:
+            raise Exception("!remindme <text> <number> <hrs/mins/secs>")
+    except Exception as e:
+        await ctx.send(e)
+####
+    delay = timedelta(**{time_units[unit]: number})
+    reminder_time = datetime.now() + delay
 
-    
+    await ctx.send(f"Reminder set for {reminder_time.strftime('%I:%M %p, on %A, %m/%d/%Y')}")
 
+    await asyncio.sleep(delay.total_seconds())
+    await ctx.send(f"Your reminder about '{text}' is here!")
         
 
 
