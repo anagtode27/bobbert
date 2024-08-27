@@ -1,1 +1,1 @@
-modularize highlighted code sections 
+modularize highlighted code sections into functions
