@@ -238,7 +238,6 @@ async def weather(ctx, *, cityName):
         "key": WEATHER_KEY,
         "q": cityName
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
             data = await response.json()
@@ -271,39 +270,50 @@ async def weather(ctx, *, cityName):
 @bot.command()
 async def timenow(ctx):
     currTime = datetime.now()
-    formattedTime = currTime.strftime("%I:%M %p, on %A, %m/%d/%Y")
+    formattedTime = currTime.strftime("%-I:%M %p, on %A, %m/%d/%Y")
     await ctx.send(f"It's currently {formattedTime}!")
 
 @bot.command()
 async def remindme(ctx, *, args):    
-    time_units = {'secs': 'seconds', 'mins': 'minutes', 'hrs': 'hours'}
+    usageText = "!remindme <text> <number> <hr/min/sec>"
+    time_units = {'sec': 'seconds', 'min': 'minutes', 'hr': 'hours'}
+    text = None
+    number = None
+    unit = None
     try:
         for i in range(len(args)):
             if args[i].isdigit():
+                numString = args[i]
+                counter = 1
+                while args[i+counter].isdigit():
+                    numString = numString + args[i+counter]
+                    counter = counter + 1
                 text = args[:i].strip()
-                number = args[i]
-                unit = args[i+1:].strip()
+                number = int(numString)
+                unit = args[i+counter+1:].strip()
 
                 # if the text and unit are empty string
-                # or if the unit is not valid
+                # or if the unit is not valid   
                 if text == "" or unit == "" or unit not in time_units:
-                    raise Exception("!remindme <text> <number> <hrs/mins/secs>")
+                    raise Exception(usageText)
                 break
         else:
-            raise Exception("!remindme <text> <number> <hrs/mins/secs>")
+            raise Exception(usageText)
     except Exception as e:
         await ctx.send(e)
-####
-    delay = timedelta(**{time_units[unit]: number})
+        return
+    
+    print(text)
+    print(number)
+    print(unit)
+
+    delay = timedelta(**{time_units[unit]: number}) # unpacking operator to pass the keyword argument dynamically
     reminder_time = datetime.now() + delay
 
-    await ctx.send(f"Reminder set for {reminder_time.strftime('%I:%M %p, on %A, %m/%d/%Y')}")
+    await ctx.send(f"Reminder set for {reminder_time.strftime('%-I:%M %p, on %A, %m/%d/%Y')}")
 
     await asyncio.sleep(delay.total_seconds())
-    await ctx.send(f"Your reminder about '{text}' is here!")
+    await ctx.send(f"Your reminder to '{text}' is here!")
         
-
-
-
 
 bot.run(DISCORD_TOKEN)
