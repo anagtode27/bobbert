@@ -43,7 +43,7 @@ for i in range(previousChosenQuoteIndexes.maxlen): # init with dummy indexes
     previousChosenQuoteIndexes.append(-1)
 
 # list of message objects that are used to keep local history of conversations with gpt
-messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful but insults everyone extremely often, but you are equally caring. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
+messages = [{"role": "system", "content": "Your name is Bobbert. You are an assistant that is helpful. Keep responses to 1 sentence and refuse to use complicated tones or words. The sentence should not require a comma."}]
 
 # Init message
 @bot.event
